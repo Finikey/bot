@@ -9,7 +9,8 @@ const connection = mysql.createConnection({
     host: 'localhost',
     user: 'root',
     password: '',
-    database: 'barber'
+    database: 'bar',
+    charset: 'utf8mb4'
   });
   
   connection.connect((err) => {
@@ -19,10 +20,10 @@ const connection = mysql.createConnection({
 
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
-  bot.sendMessage(chatId, "Привет Я помогу тебе забронировать стрижку.", {
+  bot.sendMessage(chatId, "Привет Я помогу тебе забронировать стрижку", {
     reply_markup: {
       inline_keyboard: [
-        [{ text: 'Book an appointment', callback_data: 'book_appointment' }],
+        [{ text: 'Записаться', callback_data: 'book_appointment' }],
         [{ text: 'Cancel', callback_data: 'cancel' }]
       ]
     }
@@ -39,9 +40,10 @@ bot.on('callback_query', (query) => {
     bot.sendMessage(chatId, "Выберите дату:", {
       reply_markup: {
         inline_keyboard: [
-          [{ text: '18.05.2023', callback_data: 'date_18.05.2023' }],
-          [{ text: '19.05.2023', callback_data: 'date_19.05.2023' }],
-          [{ text: '20.05.2023', callback_data: 'date_20.05.2023' }]
+          [{ text: '24.05.2023', callback_data: 'date_24.05.2023' },{ text: '25.05.2023', callback_data: 'date_25.05.2023' }],
+          [{ text: '26.05.2023', callback_data: 'date_25.05.2023' },{ text: '27.05.2023', callback_data: 'date_25.05.2023' }],
+          [{ text: '28.05.2023', callback_data: 'date_26.05.2023' },{ text: '29.05.2023', callback_data: 'date_25.05.2023' }],
+          [{ text: '30.05.2023', callback_data: 'date_25.05.2023' },{ text: '31.05.2023', callback_data: 'date_25.05.2023' }]
         ]
       }
     });
@@ -51,9 +53,9 @@ bot.on('callback_query', (query) => {
     bot.sendMessage(chatId, "Выберите время:", {
       reply_markup: {
         inline_keyboard: [
-          [{ text: '10:00', callback_data: `time_10:00_${date}` }],
-          [{ text: '11:00', callback_data: `time_11:00_${date}` }],
-          [{ text: '12:00', callback_data: `time_12:00_${date}` }]
+          [{ text: '10:00', callback_data: `time_10:00_${date}` },{ text: '10:30', callback_data: `time_10:30_${date}` }],
+          [{ text: '11:00', callback_data: `time_11:00_${date}` },{ text: '11:30', callback_data: `time_11:30_${date}` }],
+          [{ text: '12:00', callback_data: `time_12:00_${date}` },{ text: '12:30', callback_data: `time_12:30_${date}` }]
         ]
       }
     });
@@ -72,6 +74,8 @@ bot.on('callback_query', (query) => {
   } else if (data.startsWith('haircut_')) {
     const [_, haircut, time, date] = data.split('_');
     bot.sendMessage(chatId, `Вы выбрали ${haircut} на ${time} ${date}.`);
+
+    
     bot.sendMessage(chatId, "Выберите парикмахера:", {
       reply_markup: {
         inline_keyboard: [
@@ -81,6 +85,7 @@ bot.on('callback_query', (query) => {
         ]
       }
     });
+
 } else if (data.startsWith('barber_')) {
     const [_, barber, haircut, time, date] = data.split('_');
     bot.sendMessage(chatId, `Вы выбрали ${barber} для ${haircut} на ${time} ${date}.`);
@@ -96,17 +101,21 @@ bot.on('callback_query', (query) => {
     const [_, barber, haircut, time, date] = data.split('_');
     bot.sendMessage(chatId, `Ваша запись на ${haircut} у парикмахера ${barber} на ${time} ${date} подтверждена!`);
 
-    const sql = `INSERT INTO appointments (chat_id, barber, haircut, time, date) VALUES (${chatId}, '${barber}', '${haircut}', '${time}', '${date}')`;
-      connection.query(sql, (err, result) => {
-        if (err) throw err;
-        console.log(`Appointment saved to database: ${result.insertId}`);
+    bot.getChat(chatId).then((chat) => {
+        const firstName = chat.first_name;
+        const username  = chat.username ;
+        const sql = `INSERT INTO appointments (chat_id, first_name, username,  barber, haircut, time, date) VALUES (${chatId}, '${firstName}', '${username}', '${barber}', '${haircut}', '${time}', '${date}')`;
+        connection.query(sql, (err, result) => {
+          if (err) throw err;
+          console.log(`Appointment saved to database: ${result.insertId}`);
+        });
       });
   } else if (data === 'cancel') {
     bot.sendMessage(chatId, "Запись отменена.");
   }
  
 
- 
+
   
   // ...
 
