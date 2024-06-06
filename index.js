@@ -20,12 +20,13 @@ const connection = mysql.createConnection({
 
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
+  let inline_keyboard = [
+    [{ text: 'Записаться', callback_data: 'book_appointment' }],
+    [{ text: 'Cancel', callback_data: 'cancel' }]
+  ];
   bot.sendMessage(chatId, "Привет Я помогу тебе забронировать стрижку", {
     reply_markup: {
-      inline_keyboard: [
-        [{ text: 'Записаться', callback_data: 'book_appointment' }],
-        [{ text: 'Cancel', callback_data: 'cancel' }]
-      ]
+      inline_keyboard
     }
   });
 });
@@ -33,60 +34,63 @@ bot.onText(/\/start/, (msg) => {
 bot.on('callback_query', (query) => {
   const { data } = query;
   const chatId = query.message.chat.id;
-
-
+  let inline_keyboard = [];
 
   if (data === 'book_appointment') {
-    bot.sendMessage(chatId, "Выберите дату:", {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: '24.05.2023', callback_data: 'date_24.05.2023' },{ text: '25.05.2023', callback_data: 'date_25.05.2023' }],
-          [{ text: '26.05.2023', callback_data: 'date_25.05.2023' },{ text: '27.05.2023', callback_data: 'date_25.05.2023' }],
-          [{ text: '28.05.2023', callback_data: 'date_26.05.2023' },{ text: '29.05.2023', callback_data: 'date_25.05.2023' }],
-          [{ text: '30.05.2023', callback_data: 'date_25.05.2023' },{ text: '31.05.2023', callback_data: 'date_25.05.2023' }]
-        ]
-      }
+    const sql = `SELECT date FROM available_appointments WHERE available = 1`;
+    connection.query(sql, (err, result) => {
+      if (err) throw err;
+      const dates = result.map(item => item.date);
+      const inline_keyboard = dates.map(date => [{ text: date, callback_data: `date_${date}` }]);
+      bot.sendMessage(chatId, "Выберите дату:", {
+        reply_markup: {
+          inline_keyboard
+        }
+      });
     });
   } else if (data.startsWith('date_')) {
     const date = data.replace('date_', '');
     bot.sendMessage(chatId, `Вы выбрали дату ${date}. Теперь выберите время:`);
-    bot.sendMessage(chatId, "Выберите время:", {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: '10:00', callback_data: `time_10:00_${date}` },{ text: '10:30', callback_data: `time_10:30_${date}` }],
-          [{ text: '11:00', callback_data: `time_11:00_${date}` },{ text: '11:30', callback_data: `time_11:30_${date}` }],
-          [{ text: '12:00', callback_data: `time_12:00_${date}` },{ text: '12:30', callback_data: `time_12:30_${date}` }]
-        ]
-      }
+    const sql = `SELECT time FROM available_appointments WHERE date = '${date}' AND available = 1`;
+    connection.query(sql, (err, result) => {
+      if (err) throw err;
+      const times = result.map(item => item.time);
+      const inline_keyboard = times.map(time => [{ text: time, callback_data: `time_${time}_${date}` }]);
+      bot.sendMessage(chatId, "Выберите время:", {
+        reply_markup: {
+          inline_keyboard
+        }
+      });
     });
   } else if (data.startsWith('time_')) {
     const [_, time, date] = data.split('_');
     bot.sendMessage(chatId, `Вы выбрали время ${time} на дату ${date}. Теперь выберите вид стрижки:`);
-    bot.sendMessage(chatId, "Выберите вид стрижки:", {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: 'Мужская стрижка', callback_data: `haircut_Мужская стрижка_${time}_${date}` }],
-          [{ text: 'Женская стрижка', callback_data: `haircut_Женская стрижка_${time}_${date}` }],
-          [{ text: 'Детская стрижка', callback_data: `haircut_Детская стрижка_${time}_${date}` }]
-        ]
-      }
+    const sql = `SELECT haircut FROM haircuts WHERE available = 1`;
+    connection.query(sql, (err, result) => {
+      if (err) throw err;
+      const haircuts = result.map(item => item.haircut);
+      inline_keyboard = haircuts.map(haircut => [{ text: haircut, callback_data: `haircut_${haircut}_${time}_${date}` }]);
+      bot.sendMessage(chatId, "Выберите вид стрижки:", {
+        reply_markup: {
+          inline_keyboard
+        }
+      });
     });
   } else if (data.startsWith('haircut_')) {
     const [_, haircut, time, date] = data.split('_');
     bot.sendMessage(chatId, `Вы выбрали ${haircut} на ${time} ${date}.`);
-
-    
-    bot.sendMessage(chatId, "Выберите парикмахера:", {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: 'Иван', callback_data: `barber_Иван_${haircut}_${time}_${date}` }],
-          [{ text: 'Настя', callback_data: `barber_Настя_${haircut}_${time}_${date}` }],
-          [{ text: 'Олег', callback_data: `barber_Олег_${haircut}_${time}_${date}` }]
-        ]
-      }
+    const sql = `SELECT name FROM barbers WHERE available = 1`;
+    connection.query(sql, (err, result) => {
+      if (err) throw err;
+      const barbers = result.map(item => item.name);
+      inline_keyboard = barbers.map(barber => [{ text: barber, callback_data: `barber_${barber}_${haircut}_${time}_${date}` }]);
+      bot.sendMessage(chatId, "Выберите парикмахера:", {
+        reply_markup: {
+          inline_keyboard
+        }
+      });
     });
-
-} else if (data.startsWith('barber_')) {
+  } else if (data.startsWith('barber_')) {
     const [_, barber, haircut, time, date] = data.split('_');
     bot.sendMessage(chatId, `Вы выбрали ${barber} для ${haircut} на ${time} ${date}.`);
     bot.sendMessage(chatId, "Подтверждаете ли вы выбор?", {
@@ -97,32 +101,162 @@ bot.on('callback_query', (query) => {
         ]
       }
     });
+
   } else if (data.startsWith('confirm_')) {
     const [_, barber, haircut, time, date] = data.split('_');
     bot.sendMessage(chatId, `Ваша запись на ${haircut} у парикмахера ${barber} на ${time} ${date} подтверждена!`);
 
     bot.getChat(chatId).then((chat) => {
-        const firstName = chat.first_name;
-        const username  = chat.username ;
-        const sql = `INSERT INTO appointments (chat_id, first_name, username,  barber, haircut, time, date) VALUES (${chatId}, '${firstName}', '${username}', '${barber}', '${haircut}', '${time}', '${date}')`;
-        connection.query(sql, (err, result) => {
-          if (err) throw err;
-          console.log(`Appointment saved to database: ${result.insertId}`);
-        });
+      const firstName = chat.first_name;
+      const username = chat.username;
+      const sql = `INSERT INTO appointments (chat_id, first_name, username, barber, haircut, time, date) VALUES (${chatId}, '${firstName}', '${username}', '${barber}', '${haircut}', '${time}', '${date}')`;
+      connection.query(sql, (err, result) => {
+        if (err) throw err;
+        console.log(`Appointment saved to database: ${result.insertId}`);
       });
+    });
   } else if (data === 'cancel') {
     bot.sendMessage(chatId, "Запись отменена.");
   }
- 
-
-
-  
-  // ...
-
-  
- 
-
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+// const TelegramBot = require('node-telegram-bot-api');
+
+// const token = '7157748155:AAHR3UF4kSm6E5iuQgFGYgZi6le27bJyCIU';
+// const bot = new TelegramBot(token, {polling: true});
+// const mysql = require('mysql');
+// const chatId = 'YOUR_CHAT_ID';
+
+// const connection = mysql.createConnection({
+//     host: 'localhost',
+//     user: 'root',
+//     password: '',
+//     database: 'bar',
+//     charset: 'utf8mb4'
+//   });
+  
+//   connection.connect((err) => {
+//     if (err) throw err;
+//     console.log('Connected to MySQL database.');
+//   });
+
+// bot.onText(/\/start/, (msg) => {
+//   const chatId = msg.chat.id;
+//   bot.sendMessage(chatId, "Привет Я помогу тебе забронировать стрижку", {
+//     reply_markup: {
+//       inline_keyboard: [
+//         [{ text: 'Записаться', callback_data: 'book_appointment' }],
+//         [{ text: 'Cancel', callback_data: 'cancel' }]
+//       ]
+//     }
+//   });
+// });
+
+// bot.on('callback_query', (query) => {
+//   const { data } = query;
+//   const chatId = query.message.chat.id;
+
+
+
+//   if (data === 'book_appointment') {
+//     bot.sendMessage(chatId, "Выберите дату:", {
+//       reply_markup: {
+//         inline_keyboard: [
+//           [{ text: '24.05.2023', callback_data: 'date_24.05.2023' },{ text: '25.05.2023', callback_data: 'date_25.05.2023' }],
+//           [{ text: '26.05.2023', callback_data: 'date_25.05.2023' },{ text: '27.05.2023', callback_data: 'date_25.05.2023' }],
+//           [{ text: '28.05.2023', callback_data: 'date_26.05.2023' },{ text: '29.05.2023', callback_data: 'date_25.05.2023' }],
+//           [{ text: '30.05.2023', callback_data: 'date_25.05.2023' },{ text: '31.05.2023', callback_data: 'date_25.05.2023' }]
+//         ]
+//       }
+//     });
+//   } else if (data.startsWith('date_')) {
+//     const date = data.replace('date_', '');
+//     bot.sendMessage(chatId, `Вы выбрали дату ${date}. Теперь выберите время:`);
+//     bot.sendMessage(chatId, "Выберите время:", {
+//       reply_markup: {
+//         inline_keyboard: [
+//           [{ text: '10:00', callback_data: `time_10:00_${date}` },{ text: '10:30', callback_data: `time_10:30_${date}` }],
+//           [{ text: '11:00', callback_data: `time_11:00_${date}` },{ text: '11:30', callback_data: `time_11:30_${date}` }],
+//           [{ text: '12:00', callback_data: `time_12:00_${date}` },{ text: '12:30', callback_data: `time_12:30_${date}` }]
+//         ]
+//       }
+//     });
+//   } else if (data.startsWith('time_')) {
+//     const [_, time, date] = data.split('_');
+//     bot.sendMessage(chatId, `Вы выбрали время ${time} на дату ${date}. Теперь выберите вид стрижки:`);
+//     bot.sendMessage(chatId, "Выберите вид стрижки:", {
+//       reply_markup: {
+//         inline_keyboard: [
+//           [{ text: 'Мужская стрижка', callback_data: `haircut_Мужская стрижка_${time}_${date}` }],
+//           [{ text: 'Женская стрижка', callback_data: `haircut_Женская стрижка_${time}_${date}` }],
+//           [{ text: 'Детская стрижка', callback_data: `haircut_Детская стрижка_${time}_${date}` }]
+//         ]
+//       }
+//     });
+//   } else if (data.startsWith('haircut_')) {
+//     const [_, haircut, time, date] = data.split('_');
+//     bot.sendMessage(chatId, `Вы выбрали ${haircut} на ${time} ${date}.`);
+
+    
+//     bot.sendMessage(chatId, "Выберите парикмахера:", {
+//       reply_markup: {
+//         inline_keyboard: [
+//           [{ text: 'Иван', callback_data: `barber_Иван_${haircut}_${time}_${date}` }],
+        
+//           [{ text: 'Олег', callback_data: `barber_Олег_${haircut}_${time}_${date}` }]
+//         ]
+//       }
+//     });
+
+// } else if (data.startsWith('barber_')) {
+//     const [_, barber, haircut, time, date] = data.split('_');
+//     bot.sendMessage(chatId, `Вы выбрали ${barber} для ${haircut} на ${time} ${date}.`);
+//     bot.sendMessage(chatId, "Подтверждаете ли вы выбор?", {
+//       reply_markup: {
+//         inline_keyboard: [
+//           [{ text: 'Да', callback_data: `confirm_${barber}_${haircut}_${time}_${date}` }],
+//           [{ text: 'Нет', callback_data: `cancel` }]
+//         ]
+//       }
+//     });
+//   } else if (data.startsWith('confirm_')) {
+//     const [_, barber, haircut, time, date] = data.split('_');
+//     bot.sendMessage(chatId, `Ваша запись на ${haircut} у парикмахера ${barber} на ${time} ${date} подтверждена!`);
+
+//     bot.getChat(chatId).then((chat) => {
+//         const firstName = chat.first_name;
+//         const username  = chat.username ;
+//         const sql = `INSERT INTO appointments (chat_id, first_name, username,  barber, haircut, time, date) VALUES (${chatId}, '${firstName}', '${username}', '${barber}', '${haircut}', '${time}', '${date}')`;
+//         connection.query(sql, (err, result) => {
+//           if (err) throw err;
+//           console.log(`Appointment saved to database: ${result.insertId}`);
+//         });
+//       });
+//   } else if (data === 'cancel') {
+//     bot.sendMessage(chatId, "Запись отменена.");
+//   }
+ 
+
+
+  
+//   // ...
+
+  
+ 
+
+// });
 
 
 
